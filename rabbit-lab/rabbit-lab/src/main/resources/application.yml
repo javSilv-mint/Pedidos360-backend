@@ -1,0 +1,64 @@
+spring:
+  application:
+    name: rabbit-lab
+  rabbitmq:
+    addresses: ${RABBITMQ_ADDRESSES:localhost:5672,localhost:5673}
+    username: ${RABBITMQ_USER:admin}
+    password: ${RABBITMQ_PASS:admin123}
+    virtual-host: /
+    template:
+      retry:
+        enabled: true
+        initial-interval: 1s
+        max-interval: 30s
+        multiplier: 2.0
+    listener:
+      simple:
+           prefetch: ${app.rabbit.policies.prefetch}
+
+server:
+  port: 8080
+
+# Nombres propios del proyecto: ÚNICO lugar donde existen estos textos
+app:
+  rabbit:
+    hello-queue: hello
+    pedidos:
+      exchange: pedidos.exchange
+      notificaciones-queue: notificaciones.pedidos.queue
+      inventario-queue: inventario.pedidos.queue
+      rk-creado: pedido.creado
+      rk-pagado: pedido.pagado
+      rk-cancelado: pedido.cancelado
+      dlx-exchange: pedidos.dlx
+      inventario-dlq: inventario.pedidos.dlq
+      inventario-dlq-rk: inventario.dead
+    policies:
+      inventario-ttl-ms: 60000        # 60 s: si nadie lo consume, pasa a la DLQ (valor de laboratorio)
+      inventario-max-length: 1000
+      dlq-ttl-ms: 86400000            # 24 h de historial en la DLQ
+      dlq-max-length: 5000
+      prefetch: 1                     # Fair dispatch: 1 mensaje sin ACK por consumidor
+      retry:
+        max-attempts: 3
+        initial-interval-ms: 1000
+        multiplier: 2.0
+        max-interval-ms: 10000
+      dlq:
+        # false: los mensajes se ACUMULAN en la DLQ (auditoría, visibles en el panel :15672).
+        # Para la demo de alerta por log: --app.rabbit.policies.dlq.listener-enabled=true
+        listener-enabled: false
+        alerta-umbral: 1  
+    admin:
+      protected-queues:
+        - hello
+        - inventario.pedidos.queue
+        - inventario.pedidos.dlq
+        - notificaciones.pedidos.queue
+      protected-exchanges:
+        - pedidos.exchange
+        - pedidos.dlx
+      max-message-ttl-ms: 86400000
+      max-queue-length: 100000            # Con N o más mensajes en la DLQ, /api/monitoreo/colas marca alerta
+  cors:
+    allowed-origins: http://localhost:4200 
